@@ -4,6 +4,8 @@ const bodyParser = require('body-parser');
 const multer = require('multer');
 const fs = require('fs');
 const CryptoJS = require('crypto-js');
+const session = require('express-session');
+const { Pool } = require('pg');
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -27,6 +29,31 @@ const storage = multer.diskStorage({
 });
 
 const upload = multer({ storage: storage });
+
+// Session configuration
+app.use(session({
+    secret: 'secret',
+    resave: false,
+    saveUninitialized: true,
+    cookie: { secure: false } // Note: For production, use 'secure: true' with HTTPS
+}));
+
+// Database connection
+const pool = new Pool({
+    host: process.env.PG_HOST || 'dpg-cq6uvq6ehbks73979070-a',
+    user: process.env.PG_USER || 'iaswebactivity_user',
+    password: process.env.PG_PASSWORD || 'c1o0pK4As2yP6yWHZIf0ma1n0mUjU8Rs',
+    database: process.env.PG_DATABASE || 'iaswebactivity',
+    port: process.env.PG_PORT || 5432
+});
+
+pool.connect((err) => {
+    if (err) {
+        console.error('Connection error', err.stack);
+    } else {
+        console.log('Connected to database');
+    }
+});
 
 // Route for handling file upload and encryption/decryption
 app.post('/upload', upload.single('file'), (req, res) => {
@@ -114,7 +141,7 @@ app.get('/encrypt_decrypt', (req, res) => {
 });
 
 app.get('/login_signup', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', '/login_signup.html'));
+  res.sendFile(path.join(__dirname, 'public', 'login_signup.html'));
 });
 
 // Routes for APIs
@@ -130,3 +157,5 @@ app.use('/api', forgotPasswordRoute);
 app.listen(port, () => {
     console.log(`Server is running on http://localhost:${port}`);
 });
+
+module.exports = pool;
