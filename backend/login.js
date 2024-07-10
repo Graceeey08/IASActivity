@@ -1,22 +1,17 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
-const mysql = require('mysql');
 const session = require('express-session');
-const path = require('path');
+const { Pool } = require('pg');
 
 const router = express.Router();
 
-// Database connection
-const db = mysql.createConnection({
-  host: 'localhost',
-  user: 'root',
-  password: '',
-  database: 'iaswebactivity'
-});
-
-db.connect((err) => {
-  if (err) throw err;
-  console.log('Connected to database');
+// PostgreSQL connection
+const pool = new Pool({
+  host: process.env.PG_HOST || 'dpg-cq6uvq6ehbks73979070-a',
+  user: process.env.PG_USER || 'iaswebactivity_user',
+  password: process.env.PG_PASSWORD || 'c1o0pK4As2yP6yWHZIf0ma1n0mUjU8Rs',
+  database: process.env.PG_DATABASE || 'iaswebactivity',
+  port: process.env.PG_PORT || 5432
 });
 
 // Session configuration
@@ -27,15 +22,14 @@ router.use(session({
   cookie: { secure: false } // Note: For production, use 'secure: true' with HTTPS
 }));
 
-router.post('/login', (req, res) => {
+router.post('/login', async (req, res) => {
   const { username, password } = req.body;
 
   if (username && password) {
-    db.query('SELECT * FROM user WHERE username = ?', [username], (err, results) => {
-      if (err) throw err;
-
-      if (results.length > 0) {
-        const user = results[0];
+    try {
+      const result = await pool.query('SELECT * FROM "user" WHERE username = $1', [username]);
+      if (result.rows.length > 0) {
+        const user = result.rows[0];
 
         if (bcrypt.compareSync(password, user.password)) {
           req.session.userId = user.id;
@@ -62,7 +56,10 @@ router.post('/login', (req, res) => {
           </script>
         `);
       }
-    });
+    } catch (err) {
+      console.error(err);
+      res.status(500).send('Error occurred');
+    }
   } else {
     res.send(`
       <script>
