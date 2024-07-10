@@ -1,50 +1,40 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
-const mysql = require('mysql');
+const { Pool } = require('pg');
 const path = require('path');
 
 const router = express.Router();
 
-// Database connection
-const db = mysql.createConnection({
-  host: 'localhost',
-  user: 'root',
-  password: '',
-  database: 'iaswebactivity'
+// PostgreSQL connection
+const pool = new Pool({
+  host: process.env.PG_HOST || 'dpg-cq6uvq6ehbks73979070-a',
+  user: process.env.PG_USER || 'iaswebactivity_user',
+  password: process.env.PG_PASSWORD || 'c1o0pK4As2yP6yWHZIf0ma1n0mUjU8Rs',
+  database: process.env.PG_DATABASE || 'iaswebactivity',
+  port: process.env.PG_PORT || 5432
 });
 
-db.connect((err) => {
-  if (err) throw err;
-  console.log('Connected to database');
-});
-
-router.post('/forgot_password', (req, res) => {
+router.post('/forgot_password', async (req, res) => {
   const { username, newpassword, confirmpassword } = req.body;
 
   if (newpassword === confirmpassword) {
-    db.query('SELECT * FROM user WHERE username = ?', [username], (err, results) => {
-      if (err) throw err;
+    try {
+      // Check if username exists
+      const userQuery = await pool.query('SELECT * FROM "user" WHERE username = $1', [username]);
 
-      if (results.length > 0) {
+      if (userQuery.rows.length > 0) {
+        // Hash new password
         const hashedPassword = bcrypt.hashSync(newpassword, 10);
 
-        db.query('UPDATE user SET password = ? WHERE username = ?', [hashedPassword, username], (err, results) => {
-          if (err) {
-            res.send(`
-              <script>
-                alert("Error updating password: ${err.message}");
-                window.location.href = "/login_signup";
-              </script>
-            `);
-          } else {
-            res.send(`
-              <script>
-                alert("Password Reset Successfully");
-                window.location.href = "/login_signup";
-              </script>
-            `);
-          }
-        });
+        // Update password in the database
+        const updateQuery = await pool.query('UPDATE "user" SET password = $1 WHERE username = $2', [hashedPassword, username]);
+
+        res.send(`
+          <script>
+            alert("Password Reset Successfully");
+            window.location.href = "/login_signup";
+          </script>
+        `);
       } else {
         res.send(`
           <script>
@@ -53,7 +43,15 @@ router.post('/forgot_password', (req, res) => {
           </script>
         `);
       }
-    });
+    } catch (err) {
+      console.error(err);
+      res.send(`
+        <script>
+          alert("Error updating password: ${err.message}");
+          window.location.href = "/login_signup";
+        </script>
+      `);
+    }
   } else {
     res.send(`
       <script>
